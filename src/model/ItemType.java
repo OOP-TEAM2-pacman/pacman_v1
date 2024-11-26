@@ -2,5 +2,6 @@ package model;
 
 public enum ItemType {
     SHIELD,
-    FREEZE
+    FREEZE,
+    BOOST // 추가
 }
