@@ -10,7 +10,7 @@ import static constant.GameConstants.BOARD_SIZE;
 
 public class MapService {
     public char[][] readMap(int stageNumber) throws IOException {
-        String filePath = "stage/stage" + stageNumber + ".txt";
+        String filePath = "resources/stage/stage" + stageNumber + ".txt";
 
         try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
             List<String> lines = new ArrayList<>();

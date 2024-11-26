@@ -1,3 +1,2 @@
-sung1017,Astronaut,5900,5,608,0,1
-sss,Robot,5570,5,646,0,0
-asd,Robot,1375,2,229,2,7
+sss,Classic,950,1,10,3,10
+kkk,Robot,155,1,193,1,4

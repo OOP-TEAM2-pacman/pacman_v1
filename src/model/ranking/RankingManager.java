@@ -7,7 +7,7 @@ import java.util.List;
 
 public class RankingManager {
     private static final List<RankingEntry> rankings = new ArrayList<>();
-    private static final String SAVE_FILE = "rankings.txt";
+    private static final String SAVE_FILE = "resources/rankings.txt";
     private static final int MAX_RANKINGS = 10;
 
     public RankingManager() {
