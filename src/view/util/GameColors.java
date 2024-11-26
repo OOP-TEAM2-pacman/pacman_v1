@@ -12,4 +12,8 @@ public class GameColors {
     public static final Color SHIELD_ITEM = Color.GREEN;    // 실드 아이템 색
     public static final Color FREEZE_ITEM = Color.CYAN;     // 프리즈 아이템 색
     public static final Color TEXT = Color.WHITE;
+    public static final Color BOOST_ITEM = Color.WHITE; // 추가
+    public static final Color SIDEBAR_BACKGROUND = Color.GRAY; // 추가
+    public static final Color WALL = Color.GREEN;
+    public static final Color BUTTON_BACKGROUND = Color.CYAN;
 }
