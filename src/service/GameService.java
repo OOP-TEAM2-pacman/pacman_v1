@@ -1,269 +1,150 @@
-// GameModel.java
-package model;
+package service;
 
 import constant.GameConstants;
-import java.util.ArrayList;
+import model.Direction;
+import model.ItemType;
+import model.Map;
+import model.Position;
+import java.io.IOException;
 import java.util.List;
-import java.util.Random;
 
-public class GameModel {
-    // Game state
+public class GameService {
+    private final MapService mapService;
+    private final EnemyService enemyService;
+    private final ItemService itemService;
+    private final CoinService coinService;
+    private final GameStateManager gameState;
+
     private String playerName;
     private Position playerPosition;
-    private List<Position> enemies;
-    private List<Position> coins;
-    private List<Position> items;
-    private List<ItemType> itemTypes;
-    private int score;
+    private Map gameMap;
     private int stage;
-    private int shieldCount;
-    private int timeCount;
-    private boolean isGameOver;
-    private boolean isGameClear;
-    private final Random random;
-    private long startTime; // 게임 시작 시간 // 추가
-    private long elapsedTime; // 경과 시간 // 추가
-    private int boostTime; // 추가
-    //아이템 사용횟수
-    private int totalShield = 0;
-    private int totalFrozen = 0;
+    private int moveCount; // 이동 횟수 추가
 
-    public void startTimer() {
-        startTime = System.currentTimeMillis();
-        elapsedTime = 0;
-    } // 추가
-
-    public void stopTimer() {
-        elapsedTime = System.currentTimeMillis() - startTime;
-    } // 추가
-
-    public int getElapsedTime() {
-        if (isGameOver || isGameClear) {
-            return (int) (elapsedTime / 1000); // 게임 오버, 클리어 시 경과 시간 고정
-        }
-        return (int) ((System.currentTimeMillis() - startTime) / 1000); // 진행 중
-    } // 추가
-    public GameModel() {
+    public GameService() {
+        this.mapService = new MapService();
+        this.enemyService = new EnemyService();
+        this.itemService = new ItemService();
+        this.coinService = new CoinService();
+        this.gameState = new GameStateManager();
         this.playerName = "Player";
-        this.enemies = new ArrayList<>();
-        this.coins = new ArrayList<>();
-        this.items = new ArrayList<>();
-        this.itemTypes = new ArrayList<>();
-        this.random = new Random();
-        initializeGame();
+        this.moveCount = 0; // 이동 횟수 초기화
     }
 
-    public void initializeGame() {
-        playerPosition = new Position(GameConstants.BOARD_SIZE / 2, GameConstants.BOARD_SIZE / 2);
-        enemies.clear();
-        coins.clear();
-        items.clear();
-        itemTypes.clear();
-        score = 0;
+    public void initializeGame() throws IOException {
         stage = 1;
-        shieldCount = 0;
-        timeCount = 0;
-        isGameOver = false;
-        isGameClear = false;
-        boostTime = 0; // 추가
+        moveCount = 0; // 이동 횟수 초기화
+        gameState.resetState();
         initializeStage();
     }
 
-    private void initializeStage() {
-        initializeCoins();
-        initializeEnemies();
-        initializeItems();
+    private void initializeStage() throws IOException {
+        gameMap = new Map(mapService.readMap(stage));
+        initializePlayerPosition();
+
+        coinService.initializeCoins(gameMap, playerPosition, stage);
+        enemyService.initializeEnemies(gameMap, playerPosition, stage);
+        itemService.initializeItems(gameMap, playerPosition,
+                enemyService.getEnemies(),
+                coinService.getCoins(), stage);
     }
 
-    private void initializeCoins() {
-        int numCoins = stage * 10;
-        for (int i = 0; i < numCoins; i++) {
-            Position coin;
-            do {
-                coin = new Position(
-                        random.nextInt(GameConstants.BOARD_SIZE),
-                        random.nextInt(GameConstants.BOARD_SIZE)
-                );
-            } while (coins.contains(coin) || coin.equals(playerPosition));
-            coins.add(coin);
+    private void initializePlayerPosition() {
+        for (int y = 0; y < gameMap.getHeight(); y++) {
+            for (int x = 0; x < gameMap.getWidth(); x++) {
+                Position pos = new Position(x, y);
+                if (gameMap.isEmpty(pos)) {
+                    playerPosition = pos;
+                    return;
+                }
+            }
         }
-    }
-
-    private void initializeEnemies() {
-        int numEnemies = stage + 4;
-        enemies.clear();  // 이전 스테이지의 적들을 모두 제거
-
-        for (int i = 0; i < numEnemies; i++) {
-            Position enemy;
-            do {
-                enemy = new Position(
-                        random.nextInt(GameConstants.BOARD_SIZE),
-                        random.nextInt(GameConstants.BOARD_SIZE)
-                );
-            } while (enemies.contains(enemy) ||
-                    enemy.equals(playerPosition) ||
-                    isNearPlayer(enemy, 2));
-            enemies.add(enemy);
-        }
-    }
-
-    private void initializeItems() {
-        int numItems = stage + 2;
-        items.clear();
-        itemTypes.clear();
-
-        for (int i = 0; i < numItems; i++) {
-            Position item;
-            do {
-                item = new Position(
-                        random.nextInt(GameConstants.BOARD_SIZE),
-                        random.nextInt(GameConstants.BOARD_SIZE)
-                );
-            } while (coins.contains(item) ||
-                    enemies.contains(item) ||
-                    item.equals(playerPosition));
-
-            items.add(item);
-            int randomValue = random.nextInt(10); // 0~9 사이의 값
-            if (randomValue < 4) { // 40% 확률로 SHIELD
-                itemTypes.add(ItemType.SHIELD);
-            } else if (randomValue < 8) { // 40% 확률로 FREEZE
-                itemTypes.add(ItemType.FREEZE);
-            } else { // 20% 확률로 BOOST
-                itemTypes.add(ItemType.BOOST);
-            } // 추가
-        }
-    }
-
-    private boolean isNearPlayer(Position enemy, int distance) {
-        return Math.abs(enemy.getX() - playerPosition.getX()) <= distance &&
-                Math.abs(enemy.getY() - playerPosition.getY()) <= distance;
+        throw new IllegalStateException("맵에 플레이어가 배치될 공간이 없습니다.");
     }
 
     public void movePlayer(Direction direction) {
-        if (isGameOver || isGameClear) {
-            if (isGameOver) {
-                resetGame();
-                return;
-            }
-            return;
-        }
+        if (gameState.isGameOver() || gameState.isGameClear()) return;
 
-        playerPosition.move(direction, GameConstants.BOARD_SIZE);
-        updateGameState();
+        Position nextPosition = playerPosition.getNextPosition(direction);
+        if (gameMap.isWithinBounds(nextPosition) && gameMap.isEmpty(nextPosition)) {
+            playerPosition = nextPosition;
+            moveCount++; // 이동 횟수 증가
+            updateGameState();
+        }
     }
 
     private void updateGameState() {
-        checkCoinCollection();
-        checkItemCollection();
-        updateEnemies();
-        checkCollisions();
-        checkStageCompletion();
-    }
-
-    private void checkCoinCollection() {
-        coins.removeIf(coin -> {
-            if (coin.equals(playerPosition)) {
-                if (boostTime > 0) {
-                    score += GameConstants.COIN_SCORE * 2; // BOOST 효과 적용
-                    System.out.println("BOOST applied! Double points."); // 추가
-                } else {
-                    score += GameConstants.COIN_SCORE;
-                }
-                return true;
-            }
-            return false;
-        });
-    }
-
-    private void checkItemCollection() {
-        for (int i = items.size() - 1; i >= 0; i--) {
-            if (items.get(i).equals(playerPosition)) {
-                ItemType type = itemTypes.get(i);
-                if (type == ItemType.SHIELD) {
-                    shieldCount++;
-                    System.out.println("Shield acquired! Count: " + shieldCount);
-                } else if (type == ItemType.FREEZE) {
-                    timeCount = GameConstants.FREEZE_TIME;
-                    System.out.println("Freeze activated! Duration: " + timeCount);
-                } else if (type == ItemType.BOOST) {
-                    boostTime = GameConstants.BOOST_DURATION; // 활성화
-                    System.out.println("BOOST activated! Duration: " + boostTime);
-                } // 추가
-                items.remove(i);
-                itemTypes.remove(i);
-            }
+        if (coinService.collectCoin(playerPosition)) {
+            gameState.handleCoinCollection(gameState.getBoostTime() > 0);
         }
+
+        ItemType collectedItem = itemService.collectItem(playerPosition);
+        if (collectedItem != null) {
+            gameState.handleItemCollection(collectedItem);
+        }
+
+        if (gameState.getFreezeTime() <= 0) {
+            enemyService.moveEnemies(gameMap, playerPosition);
+        }
+
+        if (enemyService.checkCollision(playerPosition)) {
+            gameState.handleCollision();
+        }
+
+        if (coinService.areAllCoinsCollected()) {
+            handleStageCompletion();
+        }
+
+        gameState.updateTimers();
     }
 
-    private void checkStageCompletion() {
-        if (coins.isEmpty()) {
-            if (stage < GameConstants.MAX_STAGES) {
-                stage++;
+    private void handleStageCompletion() {
+        if (stage < GameConstants.MAX_STAGES) {
+            stage++;
+            try {
                 initializeStage();
-            } else {
-                isGameClear = true;
-                stopTimer(); // 추가
+            } catch (IOException e) {
+                e.printStackTrace();
+                gameState.setGameOver(true);
             }
-        }
-    }
-
-    private void updateEnemies() {
-        if (timeCount > 0) {
-            System.out.println("Enemies frozen. Remaining time: " + timeCount);
-            timeCount--;
-        }
-        if (boostTime > 0) {
-            System.out.println("BOOST active. Remaining time: " + boostTime);
-            boostTime--;
-        } // 추가
-        if (timeCount == 0) {
-            moveEnemies();
-        } // 추가
-    }
-
-    private void moveEnemies() {
-        for (Position enemy : enemies) {
-            Direction randomDirection = Direction.values()[random.nextInt(Direction.values().length)];
-            enemy.move(randomDirection, GameConstants.BOARD_SIZE);
-        }
-    }
-
-    private void checkCollisions() {
-        for (Position enemy : enemies) {
-            if (enemy.equals(playerPosition)) {
-                handleCollision();
-                break;
-            }
-        }
-    }
-
-    private void handleCollision() {
-        if (shieldCount > 0) {
-            shieldCount--;
-            score -= 10; // 추가
-            System.out.println("Shield used! Remaining: " + shieldCount);
         } else {
-            isGameOver = true;
-            stopTimer(); // 추가
-            System.out.println("Game Over! Score: " + score);
+            gameState.setGameClear(true);
         }
     }
 
-    // Getters and Setters
+    // 최종 점수 계산
+    public int calculateFinalScore() {
+        int baseScore = gameState.getScore(); // 코인 점수
+        int stageBonus = stage * 1000; // 스테이지 보너스
+        int moveDeduction = moveCount * 5; // 이동 횟수에 따른 감점
+
+        return baseScore + stageBonus - moveDeduction;
+    }
+
+    // Getters
+    public char[][] getMapData() { return gameMap.getMapData(); }
     public String getPlayerName() { return playerName; }
+    public void setPlayerName(String name) { this.playerName = name; }
     public Position getPlayerPosition() { return playerPosition; }
-    public List<Position> getEnemies() { return new ArrayList<>(enemies); }
-    public List<Position> getCoins() { return new ArrayList<>(coins); }
-    public List<Position> getItems() { return new ArrayList<>(items); }
-    public List<ItemType> getItemTypes() { return new ArrayList<>(itemTypes); }
-    public int getScore() { return score; }
+    public int getScore() { return gameState.getScore(); }
     public int getStage() { return stage; }
-    public int getShieldCount() { return shieldCount; }
-    public int getTimeCount() { return timeCount; }
-    public boolean isGameOver() { return isGameOver; }
-    public boolean isGameClear() { return isGameClear; }
-    public void setPlayerName(String playerName) { this.playerName = playerName; }
-    public int getBoostTime() { return  boostTime;} // 추가
-    public void resetGame() { initializeGame(); }
+    public int getShieldCount() { return gameState.getShieldCount(); }
+    public int getTimeCount() { return gameState.getFreezeTime(); }
+    public int getBoostTime() { return gameState.getBoostTime(); }
+    public int getMoveCount() { return moveCount; } // 이동 횟수 getter 추가
+    public boolean isGameOver() { return gameState.isGameOver(); }
+    public boolean isGameClear() { return gameState.isGameClear(); }
+    public int getItemCount() {
+        return itemService.getItems().size();
+    }
+
+    public int getCoinCount() {
+        return coinService.getCoins().size();
+    }
+
+    // Delegating methods for view
+    public List<Position> getEnemies() { return enemyService.getEnemies(); }
+    public List<Position> getCoins() { return coinService.getCoins(); }
+    public List<Position> getItems() { return itemService.getItems(); }
+    public List<ItemType> getItemTypes() { return itemService.getItemTypes(); }
 }
